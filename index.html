@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+svg {
+	border: #000 1px solid;
+}
+
+div#container {
+	margin-left: auto;
+	margin-right: auto;
+	display:block;
+	width: 640px;
+}
+
+page {
+	width:100%;
+	height:100%;
+}
+
+/*
+path {
+  fill: #ccc;
+  stroke: #fff;
+  stroke-width: .5px;
+}
+*/
+
+path {
+  stroke: #000;
+  stroke-width: .25px;
+  stroke-linejoin: round;
+}
+
+path#Aroostook#County {
+	fill: #F00;
+}
+
+.selected {
+	fill: #ccc;
+}
+
+</style>
+<body>
+	<div id="page">
+		<div id="click_to_run" onclick="do_update()">
+	        ...
+	    </div>
+		<div id="container"/>
+    </div>
+</body>
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script src="http://d3js.org/topojson.v1.min.js"></script>
+<script src="d3-cartogram/lib/colorbrewer.js"></script>
+<script src="d3-cartogram/cartogram.js"></script>
+<script>
+
+	var width = 640,
+	    height = 640;
+
+		
+	var projection = d3.geo.conicEqualArea()
+	.scale(7500)
+	.translate([width/2,height/2])
+	.rotate([68.5,0])
+	.center([-0.6,45.25])
+	.parallels([29.5,45.5]);
+
+	var path = d3.geo.path()
+		.projection(projection);
+	
+    var topology,
+        geometries,
+        carto_features;
+
+	var svg = d3.select("body div#page div#container").append("svg")
+				.attr("id","maine")
+				.attr("width", width)
+				.attr("height", height);
+	
+	var cartogram = d3.cartogram()
+	     			  .projection(projection)
+					  .properties(function(d) {
+					    return d.properties;
+					  })
+	     			  .value(function(d) {
+	                  	return d.properties.area;
+	});
+	
+	var hunger_data = d3.map();
+	var l;
+	var that;
+    /*
+	d3.csv("data/voting_data.csv", function (data) {
+        data.forEach(function (d) {
+            vote_data.set(d.MUNIC, [d.PARTY, d.VOTERS, d.VOTES]);
+        })
+    });
+	*/
+	
+	
+	d3.json("mecountiestopo_prop.json", function(error, data) {
+        topology = data;
+        geometries = topology.objects.mecounties.geometries;
+		
+		geometries.forEach(function (d) {
+			hunger_data.set(d.properties.county, [Math.random() * 100, Math.random() * 100, Math.random() * 100]);
+		})
+		
+		//alert(error);
+		var tf = topology.transform,
+		    kx = tf.scale[0],
+		    ky = tf.scale[1],
+		    dx = tf.translate[0],
+		    dy = tf.translate[1];
+			
+			var features = cartogram(topology,geometries);
+			svg.selectAll("path")
+			   .data(features.features)
+			   .enter()
+			   	    .append("path")
+					.attr("class", "county")
+					.attr("id", function(d) {
+						return d.properties.county;
+					})
+					.attr("fill", "#fafafa")
+			        .attr("d", cartogram.path)
+					.attr("transform","scale(1)")
+					
+					.on("mouseover",mouseover)
+					.on("mouseout",mouseout);
+			svg.selectAll("path")
+					.sort(function(a,b) {
+						return (a.properties.county < b.properties.county)?-1:(a.properties.county>b.properties.county)?1:0;
+					})
+		    d3.select("#click_to_run").text("click here to run");
+	});
+	
+	function scale(d,s) {
+		bbox = d.getBBox();
+		var bX = bbox.x+bbox.width/2,
+		    bY = bbox.y+bbox.height/2,
+			boxX = width/2,
+			boxY = height/2,
+			centerX = bX+(bX-boxX),
+			centerY = bY+(bY-boxY)
+	  return "translate("+(-centerX*(s-1))+","+(-centerY*(s-1))+")scale("+s+")";
+	}
+	
+	function mouseover(d) {
+
+	  d3.select(this)
+	    .each(function(){
+          this.parentNode.appendChild(this);
+        })
+	    .transition()
+	      .duration(750)
+	      .attr("transform", scale(this,2))
+	}
+	
+	function mouseout(d) {
+	  d3.select(this)
+	    .transition()
+	      .duration(100)
+	      .attr("transform", "scale(1)")
+		  
+		  svg.selectAll("line").remove();
+		  
+		svg.selectAll("path")
+			.sort(function(a,b) {
+				return (a.properties.county < b.properties.county)?-1:(a.properties.county>b.properties.county)?1:0;
+			})
+	}
+	
+    function do_update() {
+        d3.select("#click_to_run").text("thinking...");
+            // this sets the value to use for scaling, per munic. Here I used the total number 
+            // of voters per munic. the scaling is relative to the max value.
+            cartogram.value(function (d) {
+				return Math.random()*100;
+                //return +hunger_data.get(d.properties["county"])[1];
+            });
+
+
+            //if (carto_features == undefined)
+                //this regenrates the topology features for the new map based on 
+                carto_features = cartogram(topology,geometries);
+				
+
+            //update the map data
+		
+            d3.selectAll("path.county")
+			.data(carto_features.features.sort(function(a,b) {
+				return (a.properties.county < b.properties.county)?-1:(a.properties.county>b.properties.county)?1:0;
+			}))
+			.sort(function(a,b) {
+				return (a.properties.county < b.properties.county)?-1:(a.properties.county>b.properties.county)?1:0;
+			})
+			
+            d3.selectAll("path.county")
+			.sort(function(a,b) {
+							return (a.properties.county < b.properties.county)?-1:(a.properties.county>b.properties.county)?1:0;
+						})
+						
+			d3.selectAll("path.county")
+			.transition()
+                .duration(750)
+                .each("end", function () {
+                    d3.select("#click_to_run").text("Click to change")
+                })
+                .attr("d", cartogram.path);
+    }
+</script>
